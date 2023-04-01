@@ -1,3 +1,4 @@
+// includes ----------------------------------------------
 #include "ceditor.h"
 #include <stdlib.h>
 #include <termios.h>
@@ -5,9 +6,13 @@
 #include <stdio.h>
 #include <ctype.h>
 #include <errno.h>
+#include <sys/ioctl.h>
+#include <assert.h>
 
+// global structs ----------------------------------------
 struct termios orig_termios;
 
+// syscall wrappers --------------------------------------
 char readChar(){
 	char c;
 	int nread = read(STDIN_FILENO, &c, 1);
@@ -28,6 +33,7 @@ int writeBuffer(const char* buf, int size){
 	return write(STDOUT_FILENO, buf, size);
 }
 
+// terminal -----------------------------------------------
 void exitRawMode() {
 	// setting termios attributes to original
   	tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios);
@@ -60,4 +66,20 @@ void enterRawMode() {
   	
 	// setting termios attributes
 	tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw);
+}
+
+int getWindowCols(){
+	struct winsize ws;
+	if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+		return 0;
+	}
+	return ws.ws_row;
+}
+
+int getWindowRows(){
+	struct winsize ws;
+	if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
+		return 0;
+	}
+	return ws.ws_col;
 }
