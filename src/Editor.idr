@@ -15,11 +15,9 @@ namespace raw
 	readCharBlocking : IO Char
 	readCharBlocking = foreign FFI_C "readCharBlocking" (IO Char)
 
+	-- @TODO buffer writes
 	writeBuffer : String -> Int -> IO Int
 	writeBuffer = foreign FFI_C "writeBuffer" (String -> Int -> IO Int)
-
-	ctrl : Char -> Char
-	ctrl key = prim__andChar key (prim__intToChar 0x1f)
 
 	getWindowRows : IO Int
 	getWindowRows = foreign FFI_C "getWindowRows" (IO Int)
@@ -27,6 +25,24 @@ namespace raw
 	getWindowCols : IO Int
 	getWindowCols = foreign FFI_C "getWindowCols" (IO Int)
 
+namespace utils
+	ctrl : Char -> Char
+	ctrl key = prim__andChar key (prim__intToChar 0x1f)
+
+	times : Int -> String -> String
+	times 0 _ = ""
+	times i str = str ++ (times (i-1) str)
+
+
+namespace escapes
+	clearScreen : String
+	clearScreen = "\ESC[2J"
+
+	moveCursor : (row : Int) -> (col : Int) -> String
+	moveCursor row col = ("\ESC["++ (show row) ++ ";" ++ (show col) ++ "H")
+
+	hideCursor : String
+	hideCursor = "\ESC[?25l"
 
 namespace ripe
 	readChar : IO (Either () Char)
@@ -65,11 +81,14 @@ namespace ripe
 				pure (Left ())	-- Right False ?
 
 	editorDrawRows : Int -> IO (Either () ())
-	editorDrawRows 0 = pure (Right ())
+	editorDrawRows 1 = do
+		ripe.writeBuffer "~"
+		pure (Right ()) 
 	editorDrawRows i = do
 		ripe.writeBuffer "~\r\n"
 		editorDrawRows (i-1)
 
+	-- @TODO : reduce calls to C functions
 	getWindowSize : IO (Either () (Int, Int))
 	getWindowSize = do
 		rows <- getWindowRows
@@ -81,43 +100,44 @@ namespace ripe
 					True => pure (Left ())
 					False => pure (Right (rows, cols)) 
 
-record Editor where
-	constructor MkEditor
-	rows : Int
-	cols : Int
-
-editorInitState : Editor
-editorInitState = MkEditor 
-	{rows = 0} 
-	{cols = 0}
-
-editorRefreshScreen : ST IO (Either () ()) [editor ::: State Editor] 
+editorRefreshScreen : ST IO (Either () ()) [] 
 editorRefreshScreen = do
-	lift $ ripe.writeBuffer "\x1b[2J"	-- clear screen
-	lift $ ripe.writeBuffer "\x1b[H"	-- move cursor to top left
-	lift $ ripe.editorDrawRows 24
-	lift $ ripe.writeBuffer "\x1b[H"	-- move cursor to top left
+	Right (rows, cols) <- lift ripe.getWindowSize | Left () =>  returning (Left ()) (pure ())
+	lift $ ripe.writeBuffer clearScreen	
+	lift $ ripe.writeBuffer (moveCursor 1 1)	 
+	lift $ ripe.editorDrawRows rows
+	lift $ ripe.writeBuffer (moveCursor 1 1)
 
-handlerLoop : ST IO () [editor ::: State Editor]
+handlerLoop : ST IO () []
 handlerLoop = do
 	Right userContinues <- lift ripe.editorHandleKeypress | Left () =>   returning () (pure ())
 	editorRefreshScreen
 	handlerLoop
 
-
 main' : ST IO () []
 main' = do
 	lift $ raw.enterRawMode
-	editor <- new editorInitState
-	{-Right ()-}
 	handlerLoop
-	delete editor
 
 main : IO ()
 main = run main'
 
 -- SOME RESPECTABLE GARBAGE CAN BE FOUND HERE --
 {- 
+record Editor where
+	constructor MkEditor
+	rows : Int
+	cols : Int
+	cursorX : Int
+	cursorY : Int
+
+editorInitState : Editor
+editorInitState = MkEditor 
+	{rows = 0} 
+	{cols = 0}
+	{cursorX = 0}
+	{cursorY = 0}
+
 mutual
 	printCharAndReadInput : Char -> ST IO () []
 	printCharAndReadInput c = do
@@ -133,4 +153,10 @@ mutual
 		if c /= '\0'
 			then printCharAndReadInput c --lift $ putStrLn $ show (cast {to=Int} c) ++ "\r"
 			else readInput 
+
+
+-- EditorState : Type
+-- EditorState = WaitingKeyPress 
+-- 			| 
+
 -}
