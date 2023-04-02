@@ -47,6 +47,9 @@ namespace escapes
 	showCursor : String
 	showCursor = "\ESC[?25h"
 
+	clearLineRightOfCursor : String
+	clearLineRightOfCursor = "\ESC[K"
+
 
 
 namespace ripe
@@ -81,16 +84,16 @@ namespace ripe
 		case c /= ctrl 'q' of
 			True => pure (Right ())
 			False => do
-				ripe.writeBuffer "\x1b[2J"	-- clear screen
-				ripe.writeBuffer "\x1b[H"	-- move cursor to top left
+				ripe.writeBuffer clearScreen	-- clear screen
+				ripe.writeBuffer (moveCursor 1 1)	-- move cursor to top left
 				pure (Left ())	-- Right False ?
 
 	editorDrawRows : Int -> IO (Either () ())
 	editorDrawRows 1 = do
-		ripe.writeBuffer "~"
+		ripe.writeBuffer ("~" ++ clearLineRightOfCursor)
 		pure (Right ()) 
 	editorDrawRows i = do
-		ripe.writeBuffer "~\r\n"
+		ripe.writeBuffer ("~" ++ clearLineRightOfCursor ++ "\r\n")
 		editorDrawRows (i-1)
 
 	-- @TODO : reduce calls to C functions
@@ -109,7 +112,6 @@ editorRefreshScreen : ST IO (Either () ()) []
 editorRefreshScreen = do
 	Right (rows, cols) <- lift ripe.getWindowSize | Left () =>  returning (Left ()) (pure ())
 	lift $ ripe.writeBuffer hideCursor	
-	lift $ ripe.writeBuffer clearScreen	
 	lift $ ripe.writeBuffer (moveCursor 1 1)	 
 	lift $ ripe.editorDrawRows rows
 	lift $ ripe.writeBuffer (moveCursor 1 1)
