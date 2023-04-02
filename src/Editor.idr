@@ -44,6 +44,11 @@ namespace escapes
 	hideCursor : String
 	hideCursor = "\ESC[?25l"
 
+	showCursor : String
+	showCursor = "\ESC[?25h"
+
+
+
 namespace ripe
 	readChar : IO (Either () Char)
 	readChar = do
@@ -103,10 +108,12 @@ namespace ripe
 editorRefreshScreen : ST IO (Either () ()) [] 
 editorRefreshScreen = do
 	Right (rows, cols) <- lift ripe.getWindowSize | Left () =>  returning (Left ()) (pure ())
+	lift $ ripe.writeBuffer hideCursor	
 	lift $ ripe.writeBuffer clearScreen	
 	lift $ ripe.writeBuffer (moveCursor 1 1)	 
 	lift $ ripe.editorDrawRows rows
 	lift $ ripe.writeBuffer (moveCursor 1 1)
+	lift $ ripe.writeBuffer showCursor	
 
 handlerLoop : ST IO () []
 handlerLoop = do
