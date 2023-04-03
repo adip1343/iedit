@@ -7,10 +7,12 @@ import Control.ST.ImplicitCall
 record EditorState where
 	constructor MkEditor
 	cursor : (Int, Int)
-	window : (Int, Int)
+	screen : (Int, Int)
+	numRows : Int
+	erow : String
 
 initialEditorState : EditorState
-initialEditorState = MkEditor (0, 0) (0, 0)
+initialEditorState = MkEditor (0, 0) (0, 0) 0 ""
 
 namespace raw
 	-- enters raw mode
@@ -45,10 +47,20 @@ namespace utils
 	times 0 _ = ""
 	times i str = str ++ (times (i-1) str)
 
+	clip : (x : Int) -> (min : Int) -> (max: Int) -> Int
+	clip x mn mx = case compare mn x of
+		GT => mn 
+		EQ => mn
+		LT => case compare x mx of 
+				GT => mx
+				EQ => mx
+				LT => x
+
 	moveCursor : EditorState -> (Int, Int) -> EditorState
 	moveCursor e (dx, dy) 
 		= let (x, y) = cursor e in 
-		set_cursor (x+dx, y+dy) e
+			let (rows, cols) = screen e in
+				set_cursor ((clip (x+dx) 0 (cols-1)), (clip (y+dy) 0 (rows-1))) e
 
 namespace escapes
 	clearScreen : String
@@ -118,6 +130,9 @@ implementation EditorIO IO where
 	init = do
 		lift enterRawMode 
 		editor <- new initialEditorState
+		Right (rows, cols) <- lift $ ripe.getWindowSize | Left () => pure editor
+		e <- read editor
+		write editor (set_screen (rows, cols) e)
 		pure editor
 
 	readKey editor = do
@@ -154,11 +169,10 @@ implementation EditorIO IO where
 		write editor (utils.moveCursor e (0, 1))
 		pure (Right ())
 
-	
 	-- -- delKey
 	-- handleKeypress editor 1004 = ?hole
 	
-	-- -- homeKey
+	-- homeKey
 	-- handleKeypress editor 1005 = ?hole
 	
 	-- -- endKey
@@ -177,12 +191,10 @@ implementation EditorIO IO where
 	handleKeypress editor c = pure (Right ()) 
 
 	refreshScreen editor = do
-		Right (rows, cols) <- lift $ ripe.getWindowSize | Left () => pure (Left ())
 		e <- read editor
-		write editor (set_window (rows, cols) e)
 		lift $ ripe.writeBuffer hideCursor	
 		lift $ ripe.writeBuffer (escapes.moveCursor (0, 0))	 
-		lift $ ripe.editorDrawRows rows
+		lift $ ripe.editorDrawRows $ fst (screen e)
 		lift $ ripe.writeBuffer (escapes.moveCursor (cursor e))
 		lift $ ripe.writeBuffer showCursor
 	
@@ -202,128 +214,7 @@ main = run (do
 	listenEvent editor
 	remove editor)
 
--- editorRefreshScreen : ST IO (Either () ()) [] 
--- editorRefreshScreen = do
--- 	Right (rows, cols) <- lift ripe.getWindowSize | Left () =>  returning (Left ()) (pure ())
--- 	lift $ ripe.writeBuffer hideCursor	
--- 	lift $ ripe.writeBuffer (moveCursor 1 1)	 
--- 	lift $ ripe.editorDrawRows rows
--- 	lift $ ripe.writeBuffer (moveCursor 1 1)
--- 	lift $ ripe.writeBuffer showCursor	
-
--- handlerLoop : ST IO () []
--- handlerLoop = do
--- 	Right userContinues <- lift ripe.editorHandleKeypress | Left () =>   returning () (pure ())
--- 	editorRefreshScreen
--- 	handlerLoop
-
--- main' : ST IO () []
--- main' = do
--- 	lift $ raw.enterRawMode
--- 	handlerLoop
-
 -- main : IO ()
--- main = run main'
-
--- SOME RESPECTABLE GARBAGE CAN BE FOUND HERE --
-{- 
-record Editor where
-	constructor MkEditor
-	rows : Int
-	cols : Int
-	cursorX : Int
-	cursorY : Int
-
-editorInitState : Editor
-editorInitState = MkEditor 
-	{rows = 0} 
-	{cols = 0}
-	{cursorX = 0}
-	{cursorY = 0}
-
---moveCursor : (editor : Var) -> (c : Char) -> ST m () [editor ::: Editor]
-	
-	-- moveCursor editor c = do
-	-- 	e <- read editor
-	-- 	write editor $ set_cursor (cursor e) e
-
-
-mutual
-	printCharAndReadInput : Char -> ST IO () []
-	printCharAndReadInput c = do
-		lift $ putStrLn $ show (cast {to=Int} c) ++ "\r"  
-		--else lift $ putStrLn $ show c ++ "\r"
-		if c /= 'q'
-			then readInput
-			else returning () (pure ())
-
-	readInput : ST IO () []
-	readInput = do
-		Right c <- lift $ readCharBlocking | Left () => returning () (pure ())
-		if c /= '\0'
-			then printCharAndReadInput c --lift $ putStrLn $ show (cast {to=Int} c) ++ "\r"
-			else readInput 
-
-readChar : IO (Either () Char)
-	readChar = do
-		c <- raw.readChar
-		if c /= '\0'
-			then pure (Right c)
-			else pure (Left ())
-
-	readCharBlocking : IO (Either () Char)
-	readCharBlocking = do
-		c <- raw.readCharBlocking
-		if c /= '\0'
-			then pure (Right c)
-			else pure (Left ())
-
--- EditorState : Type
--- EditorState = WaitingKeyPress 
--- 			| 
-
--- return True if user doesn't quits Ctrl Q
-	-- editorHandleKeypress : IO (Either () ())
-	-- editorHandleKeypress = do
-	-- 	Right c <- editorReadKey | Left () => pure (Left ())	--some error
-	-- 	case c /= ctrl 'q' of
-	-- 		True => pure (Right ())
-	-- 		False => do
-	-- 			ripe.writeBuffer clearScreen	-- clear screen
-	-- 			ripe.writeBuffer (moveCursor (0, 0))	-- move cursor to top left
-	-- 			pure (Left ())	-- Right False ?
-
-
-	arrowLeft : Int 
-	arrowLeft = 1000
-	
-	arrowRight : Int
-	arrowRight = 1001
-
-	arrowUp : Int 
-	arrowUp = 1002
-
-	arrowDown : Int
-	arrowDown = 1003
-
-	delKey : Int
-	delKey = 1004
-
-	homeKey : Int
-	homeKey = 1005
-
-	endKey : Int
-	endKey = 1006
-
-	pageUp : Int
-	pageUp = 1007
-
-	pageDown : Int
-	pageDown = 1008
-
-	backSpace : Int
-	backSpace = 127
-
-	ctrlQ : Int
-	ctrlQ = 17
--}
+-- main  = do 
+-- 	Right (rows, cols) <- getWindowSize | Left () => pure ()
+-- 	printLn $ show (rows, cols)

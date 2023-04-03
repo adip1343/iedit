@@ -122,7 +122,7 @@ int getWindowCols(){
 	if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
 		return 0;
 	}
-	return ws.ws_row;
+	return ws.ws_col;
 }
 
 int getWindowRows(){
@@ -130,5 +130,5 @@ int getWindowRows(){
 	if(ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0){
 		return 0;
 	}
-	return ws.ws_col;
+	return ws.ws_row;
 }
