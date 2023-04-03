@@ -50,8 +50,6 @@ namespace escapes
 	clearLineRightOfCursor : String
 	clearLineRightOfCursor = "\ESC[K"
 
-
-
 namespace ripe
 	readChar : IO (Either () Char)
 	readChar = do
@@ -108,28 +106,88 @@ namespace ripe
 					True => pure (Left ())
 					False => pure (Right (rows, cols)) 
 
-editorRefreshScreen : ST IO (Either () ()) [] 
-editorRefreshScreen = do
-	Right (rows, cols) <- lift ripe.getWindowSize | Left () =>  returning (Left ()) (pure ())
-	lift $ ripe.writeBuffer hideCursor	
-	lift $ ripe.writeBuffer (moveCursor 1 1)	 
-	lift $ ripe.editorDrawRows rows
-	lift $ ripe.writeBuffer (moveCursor 1 1)
-	lift $ ripe.writeBuffer showCursor	
+record EditorState where
+	constructor MkEditor
+	cursor : (Int, Int)
+	window : (Int, Int)
 
-handlerLoop : ST IO () []
-handlerLoop = do
-	Right userContinues <- lift ripe.editorHandleKeypress | Left () =>   returning () (pure ())
-	editorRefreshScreen
-	handlerLoop
+initialEditorState : EditorState
+initialEditorState = MkEditor (0, 0) (0, 0)
 
-main' : ST IO () []
-main' = do
-	lift $ raw.enterRawMode
-	handlerLoop
+interface EditorIO (m : Type -> Type) where
+	Editor : Type
+	init : ST m Var [add Editor]
+	handleKeypress : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
+	refreshScreen : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
+	remove : (editor : Var) -> ST m () [Remove editor Editor]
+
+implementation EditorIO IO where
+	
+	Editor = State EditorState
+	
+	init = do
+		lift enterRawMode 
+		editor <- new initialEditorState
+		pure editor
+
+	handleKeypress editor = do
+		Right c <- lift editorReadKey | Left () => pure (Left ())	--some error
+		case c /= (ctrl 'q') of
+			True => pure (Right ())
+			False => do
+				lift $ ripe.writeBuffer clearScreen
+				lift $ ripe.writeBuffer (moveCursor 1 1)
+				pure (Left ())	-- Right False ?
+
+	refreshScreen editor = do
+		Right (rows, cols) <- lift $ ripe.getWindowSize | Left () => pure (Left ())
+		e <- read editor
+		write editor (set_window (rows, cols) e)
+		lift $ ripe.writeBuffer hideCursor	
+		lift $ ripe.writeBuffer (moveCursor 1 1)	 
+		lift $ ripe.editorDrawRows rows
+		lift $ ripe.writeBuffer (moveCursor 1 1)
+		lift $ ripe.writeBuffer showCursor
+	
+	remove editor = delete editor
+
+
+listenEvent : (EditorIO m, ConsoleIO m) => 
+				(editor : Var) -> ST m () [editor ::: Editor {m}]
+listenEvent editor = do
+		Right userContinues <- handleKeypress editor
+							| Left () => pure ()
+		refreshScreen editor
+		listenEvent editor
 
 main : IO ()
-main = run main'
+main = run (do 
+	editor <- init
+	listenEvent editor
+	remove editor)
+
+-- editorRefreshScreen : ST IO (Either () ()) [] 
+-- editorRefreshScreen = do
+-- 	Right (rows, cols) <- lift ripe.getWindowSize | Left () =>  returning (Left ()) (pure ())
+-- 	lift $ ripe.writeBuffer hideCursor	
+-- 	lift $ ripe.writeBuffer (moveCursor 1 1)	 
+-- 	lift $ ripe.editorDrawRows rows
+-- 	lift $ ripe.writeBuffer (moveCursor 1 1)
+-- 	lift $ ripe.writeBuffer showCursor	
+
+-- handlerLoop : ST IO () []
+-- handlerLoop = do
+-- 	Right userContinues <- lift ripe.editorHandleKeypress | Left () =>   returning () (pure ())
+-- 	editorRefreshScreen
+-- 	handlerLoop
+
+-- main' : ST IO () []
+-- main' = do
+-- 	lift $ raw.enterRawMode
+-- 	handlerLoop
+
+-- main : IO ()
+-- main = run main'
 
 -- SOME RESPECTABLE GARBAGE CAN BE FOUND HERE --
 {- 
