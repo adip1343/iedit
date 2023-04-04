@@ -173,18 +173,29 @@ implementation EditorIO IO where
 	-- handleKeypress editor 1004 = ?hole
 	
 	-- homeKey
-	-- handleKeypress editor 1005 = ?hole
-	
-	-- -- endKey
-	-- handleKeypress editor 1006 = ?hole
-	
-	-- -- pageUp
-	-- handleKeypress editor 1007 = ?hole
-	
-	-- -- pageDown
-	-- handleKeypress editor 1007 = ?hole
+	handleKeypress editor 1005 = do
+		e <- read editor
+		write editor (utils.moveCursor e (-(fst (cursor e)), 0))
+		pure (Right ())
 
-	-- -- backSpace
+	-- endKey
+	handleKeypress editor 1006 = do
+		e <- read editor
+		write editor (utils.moveCursor e ((snd (screen e)), 0))
+		pure (Right ())
+	-- pageUp
+	handleKeypress editor 1007 = do
+		e <- read editor
+		write editor (utils.moveCursor e (0, (fst (screen e))))
+		pure (Right ())
+	
+	-- pageDown
+	handleKeypress editor 1008 = do
+		e <- read editor
+		write editor (utils.moveCursor e (0, (fst (screen e))))
+		pure (Right ())
+
+	-- backSpace
 	-- handleKeypress editor 127 = ?hole
 	
 	-- other keys
