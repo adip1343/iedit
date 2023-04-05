@@ -9,10 +9,10 @@ record EditorState where
 	cursor : (Int, Int)
 	screen : (Int, Int)
 	numRows : Int
-	erow : String
+	rows : List String
 
 initialEditorState : EditorState
-initialEditorState = MkEditor (0, 0) (0, 0) 0 ""
+initialEditorState = MkEditor (0, 0) (0, 0) 1 ["Hello World"]
 
 namespace raw
 	-- enters raw mode
@@ -93,14 +93,21 @@ namespace ripe
 		case ret /= -1 of
 			True => pure (Right ret)
 			False => pure (Left ())
+	
+	editorDrawRows : EditorState -> (i : Int) ->  IO (Either () ())
+	editorDrawRows  e i 
+	= let MkEditor (cx, cy) (row, col) numRows rows = e in
+	  	let Just toDraw = if i < numRows then (index' (cast i) rows) else (Just "~") in  
+			do
+				case compare i (row-1) of
+					LT => do
+						ripe.writeBuffer (toDraw ++ clearLineRightOfCursor ++ "\r\n")
+						editorDrawRows e (i+1)
+					EQ => do
+						ripe.writeBuffer (toDraw ++ clearLineRightOfCursor)
+						editorDrawRows e (i+1)
+					GT => pure (Right ())
 
-	editorDrawRows : Int -> IO (Either () ())
-	editorDrawRows 1 = do
-		ripe.writeBuffer ("~" ++ clearLineRightOfCursor)
-		pure (Right ()) 
-	editorDrawRows i = do
-		ripe.writeBuffer ("~" ++ clearLineRightOfCursor ++ "\r\n")
-		editorDrawRows (i-1)
 
 	-- @TODO : reduce calls to C functions
 	getWindowSize : IO (Either () (Int, Int))
@@ -133,6 +140,8 @@ implementation EditorIO IO where
 		Right (rows, cols) <- lift $ ripe.getWindowSize | Left () => pure editor
 		e <- read editor
 		write editor (set_screen (rows, cols) e)
+		-- args <- lift getArgs 
+		-- if args != [] then editorOpen editor  
 		pure editor
 
 	readKey editor = do
@@ -194,7 +203,7 @@ implementation EditorIO IO where
 		e <- read editor
 		lift $ ripe.writeBuffer hideCursor	
 		lift $ ripe.writeBuffer (escapes.moveCursor (0, 0))	 
-		lift $ ripe.editorDrawRows $ fst (screen e)
+		lift $ ripe.editorDrawRows e 0
 		lift $ ripe.writeBuffer (escapes.moveCursor (cursor e))
 		lift $ ripe.writeBuffer showCursor
 	
