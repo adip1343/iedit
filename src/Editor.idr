@@ -12,7 +12,8 @@ record EditorState where
 	rows : List String
 
 initialEditorState : EditorState
-initialEditorState = MkEditor (0, 0) (0, 0) 1 ["Hello World"]
+initialEditorState = MkEditor (0, 0) (0, 0) 0 []
+
 
 namespace raw
 	-- enters raw mode
@@ -101,13 +102,27 @@ namespace ripe
 			do
 				case compare i (row-1) of
 					LT => do
-						ripe.writeBuffer (toDraw ++ clearLineRightOfCursor ++ "\r\n")
+						ripe.writeBuffer (substr (cast 0) (cast col) toDraw) 
+						ripe.writeBuffer (clearLineRightOfCursor ++ "\r\n")
 						editorDrawRows e (i+1)
 					EQ => do
-						ripe.writeBuffer (toDraw ++ clearLineRightOfCursor)
+						ripe.writeBuffer (substr (cast 0) (cast col) toDraw)
+						ripe.writeBuffer clearLineRightOfCursor
 						editorDrawRows e (i+1)
 					GT => pure (Right ())
 
+	editorReadFile : (fileName : String) -> IO (Either () (List String))
+	editorReadFile fileName = do
+		Right text <- readFile fileName | Left fileError => pure (Left ())
+		pure (Right (lines text))
+	
+	editorGetFileName : IO (Either () String)
+	editorGetFileName = do
+		args <- getArgs
+		case length args < 2 of
+			True => pure (Left ())
+			False => let Just fileName = (index' (cast 1) args) in pure (Right fileName)
+		
 
 	-- @TODO : reduce calls to C functions
 	getWindowSize : IO (Either () (Int, Int))
@@ -125,6 +140,7 @@ namespace ripe
 interface EditorIO (m : Type -> Type) where
 	Editor : Type
 	init : ST m Var [add Editor]
+	loadFile : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
 	handleKeypress : (editor : Var) -> (key : Int) ->ST m (Either () ()) [editor ::: Editor]
 	refreshScreen : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
 	remove : (editor : Var) -> ST m () [Remove editor Editor]
@@ -133,15 +149,22 @@ interface EditorIO (m : Type -> Type) where
 implementation EditorIO IO where
 	
 	Editor = State EditorState
+	
+	loadFile editor = do
+		Right fileName <- lift $ editorGetFileName | Left noFile => pure (Right ())
+		Right fileLines <- lift $ editorReadFile fileName | Left fileError => pure (Left ())
+		update editor (set_numRows (cast (length fileLines)))
+		update editor (set_rows fileLines)
+		--lift $ printLn (show fileLines)
+		pure (Right ())
 
 	init = do
 		lift enterRawMode 
 		editor <- new initialEditorState
-		Right (rows, cols) <- lift $ ripe.getWindowSize | Left () => pure editor
+		Right (r, c) <- lift $ ripe.getWindowSize | Left () => pure editor
 		e <- read editor
-		write editor (set_screen (rows, cols) e)
-		-- args <- lift getArgs 
-		-- if args != [] then editorOpen editor  
+		update editor (set_screen (r, c))
+		Right () <- loadFile editor | Left () => pure editor
 		pure editor
 
 	readKey editor = do
@@ -220,10 +243,18 @@ listenEvent editor = do
 main : IO ()
 main = run (do 
 	editor <- init
+	refreshScreen editor
 	listenEvent editor
 	remove editor)
 
 -- main : IO ()
--- main  = do 
--- 	Right (rows, cols) <- getWindowSize | Left () => pure ()
--- 	printLn $ show (rows, cols)
+-- main  = do
+-- 	args <- getArgs
+-- 	printLn (show args)
+-- 	if length args < 2
+-- 		then pure ()
+-- 		else 
+			-- let Just fileName = (index' (cast 1) args) in 
+			-- 	do
+			-- 		Right text <- readFile fileName | Left fileError => pure ()
+			-- 		printLn (show (lines text))
