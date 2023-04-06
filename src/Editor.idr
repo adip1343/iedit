@@ -8,11 +8,12 @@ record EditorState where
 	constructor MkEditor
 	cursor : (Int, Int)
 	screen : (Int, Int)
+	offset : (Int, Int)
 	numRows : Int
 	rows : List String
 
 initialEditorState : EditorState
-initialEditorState = MkEditor (0, 0) (0, 0) 0 []
+initialEditorState = MkEditor (0, 0) (0, 0) (0, 0) 0 []
 
 
 namespace raw
@@ -57,11 +58,16 @@ namespace utils
 				EQ => mx
 				LT => x
 
-	moveCursor : EditorState -> (Int, Int) -> EditorState
-	moveCursor e (dx, dy) 
-		= let (x, y) = cursor e in 
-			let (rows, cols) = screen e in
-				set_cursor ((clip (x+dx) 0 (cols-1)), (clip (y+dy) 0 (rows-1))) e
+	moveCursor : (Int, Int) -> EditorState -> EditorState
+	moveCursor (dx, dy) e 
+		= let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in 
+			set_cursor ((clip (cx+dx) 0 (col-1)), (clip (cy+dy) 0 numRows)) e
+
+	editorScroll : EditorState -> EditorState
+	editorScroll e = let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in
+						let updatedOffy = min cy offy in
+							set_offset (offx, max updatedOffy (cy - row + 1)) e
+
 
 namespace escapes
 	clearScreen : String
@@ -95,21 +101,23 @@ namespace ripe
 			True => pure (Right ret)
 			False => pure (Left ())
 	
-	editorDrawRows : EditorState -> (i : Int) ->  IO (Either () ())
-	editorDrawRows  e i 
-	= let MkEditor (cx, cy) (row, col) numRows rows = e in
-	  	let Just toDraw = if i < numRows then (index' (cast i) rows) else (Just "~") in  
-			do
-				case compare i (row-1) of
-					LT => do
-						ripe.writeBuffer (substr (cast 0) (cast col) toDraw) 
-						ripe.writeBuffer (clearLineRightOfCursor ++ "\r\n")
-						editorDrawRows e (i+1)
-					EQ => do
-						ripe.writeBuffer (substr (cast 0) (cast col) toDraw)
-						ripe.writeBuffer clearLineRightOfCursor
-						editorDrawRows e (i+1)
-					GT => pure (Right ())
+	-- 
+	editorDrawRows : EditorState -> (j : Int) ->  IO (Either () ())
+	editorDrawRows  e j 
+	= let MkEditor (cx, cy) (row, col) (offx, offy) nRows rows = e in
+		let i = j + offy in 
+	  		let Just toDraw = if i < nRows then (index' (cast i) rows) else (Just "~") in  
+				do
+					case compare j (row-1) of
+						LT => do
+							ripe.writeBuffer (substr (cast 0) (cast col) toDraw) 
+							ripe.writeBuffer (clearLineRightOfCursor ++ "\r\n")
+							editorDrawRows e (j+1)
+						EQ => do
+							ripe.writeBuffer (substr (cast 0) (cast col) toDraw)
+							ripe.writeBuffer clearLineRightOfCursor
+							editorDrawRows e (j+1)
+						GT => pure (Right ())
 
 	editorReadFile : (fileName : String) -> IO (Either () (List String))
 	editorReadFile fileName = do
@@ -155,7 +163,6 @@ implementation EditorIO IO where
 		Right fileLines <- lift $ editorReadFile fileName | Left fileError => pure (Left ())
 		update editor (set_numRows (cast (length fileLines)))
 		update editor (set_rows fileLines)
-		--lift $ printLn (show fileLines)
 		pure (Right ())
 
 	init = do
@@ -179,26 +186,22 @@ implementation EditorIO IO where
 
 	-- arrowLeft 
 	handleKeypress editor 1000 = do
-		e <- read editor
-		write editor (utils.moveCursor e (-1, 0))
+		update editor (utils.moveCursor (-1, 0))
 		pure (Right ())
 	
 	-- arrowRight
 	handleKeypress editor 1001 = do
-		e <- read editor
-		write editor (utils.moveCursor e (1, 0))
+		update editor (utils.moveCursor (1, 0))
 		pure (Right ())
 	
 	-- arrowUp
 	handleKeypress editor 1002 = do
-		e <- read editor
-		write editor (utils.moveCursor e (0, -1))
+		update editor (utils.moveCursor (0, -1))
 		pure (Right ())
 
 	-- arrowDown
 	handleKeypress editor 1003 = do
-		e <- read editor
-		write editor (utils.moveCursor e (0, 1))
+		update editor (utils.moveCursor (0, 1))
 		pure (Right ())
 
 	-- -- delKey
@@ -223,11 +226,12 @@ implementation EditorIO IO where
 	handleKeypress editor c = pure (Right ()) 
 
 	refreshScreen editor = do
-		e <- read editor
+		update editor editorScroll
 		lift $ ripe.writeBuffer hideCursor	
 		lift $ ripe.writeBuffer (escapes.moveCursor (0, 0))	 
-		lift $ ripe.editorDrawRows e 0
-		lift $ ripe.writeBuffer (escapes.moveCursor (cursor e))
+		lift $ ripe.editorDrawRows !(read editor) 0
+		MkEditor (cx, cy) (row, col) (offx, offy) numRows rows <- read editor
+		lift $ ripe.writeBuffer (escapes.moveCursor (cx, cy - offy))
 		lift $ ripe.writeBuffer showCursor
 	
 	remove editor = delete editor
@@ -246,15 +250,3 @@ main = run (do
 	refreshScreen editor
 	listenEvent editor
 	remove editor)
-
--- main : IO ()
--- main  = do
--- 	args <- getArgs
--- 	printLn (show args)
--- 	if length args < 2
--- 		then pure ()
--- 		else 
-			-- let Just fileName = (index' (cast 1) args) in 
-			-- 	do
-			-- 		Right text <- readFile fileName | Left fileError => pure ()
-			-- 		printLn (show (lines text))
