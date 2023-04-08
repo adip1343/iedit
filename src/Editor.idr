@@ -1,45 +1,7 @@
 import Control.ST
 import Control.ST.ImplicitCall
-
-%include C "ceditor.h"
-%link C "ceditor.o"
-
-record EditorState where
-	constructor MkEditor
-	cursor : (Int, Int)
-	screen : (Int, Int)
-	offset : (Int, Int)
-	numRows : Int
-	rows : List String
-
-initialEditorState : EditorState
-initialEditorState = MkEditor (0, 0) (0, 0) (0, 0) 0 []
-
-
-namespace raw
-	-- enters raw mode
-	enterRawMode : IO ()
-	enterRawMode = foreign FFI_C "enterRawMode" (IO ())
-
-	readChar : IO Char
-	readChar = foreign FFI_C "readChar" (IO Char)
-
-	readCharBlocking : IO Char
-	readCharBlocking = foreign FFI_C "readCharBlocking" (IO Char)
-
-	-- @TODO rewrite with read calls
-	editorReadKey : IO Int
-	editorReadKey = foreign FFI_C "editorReadKey" (IO Int)
-
-	-- @TODO buffer writes
-	writeBuffer : String -> Int -> IO Int
-	writeBuffer = foreign FFI_C "writeBuffer" (String -> Int -> IO Int)
-
-	getWindowRows : IO Int
-	getWindowRows = foreign FFI_C "getWindowRows" (IO Int)
-
-	getWindowCols : IO Int
-	getWindowCols = foreign FFI_C "getWindowCols" (IO Int)
+import Types
+import Interface
 
 namespace utils
 	ctrl : Char -> Int
@@ -60,13 +22,15 @@ namespace utils
 
 	moveCursor : (Int, Int) -> EditorState -> EditorState
 	moveCursor (dx, dy) e 
-		= let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in 
-			set_cursor ((clip (cx+dx) 0 (col-1)), (clip (cy+dy) 0 numRows)) e
+		= let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in
+			case (index' (cast cy) rows) of
+				Just line => set_cursor ((clip (cx+dx) 0 (cast (length line))) , (clip (cy+dy) 0 numRows)) e 
+				Nothing => set_cursor (cx , (clip (cy+dy) 0 numRows)) e
 
 	editorScroll : EditorState -> EditorState
 	editorScroll e = let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in
-						let updatedOffy = min cy offy in
-							set_offset (offx, max updatedOffy (cy - row + 1)) e
+						let (updatedOffx, updatedOffy) = (min cx offx, min cy offy) in		-- scroll up to cursor
+							set_offset (max updatedOffx (cx - col + 1), max updatedOffy (cy - row + 1)) e
 
 
 namespace escapes
@@ -110,11 +74,11 @@ namespace ripe
 				do
 					case compare j (row-1) of
 						LT => do
-							ripe.writeBuffer (substr (cast 0) (cast col) toDraw) 
+							ripe.writeBuffer (substr (cast offx) (cast col) toDraw) 
 							ripe.writeBuffer (clearLineRightOfCursor ++ "\r\n")
 							editorDrawRows e (j+1)
 						EQ => do
-							ripe.writeBuffer (substr (cast 0) (cast col) toDraw)
+							ripe.writeBuffer (substr (cast offx) (cast col) toDraw)
 							ripe.writeBuffer clearLineRightOfCursor
 							editorDrawRows e (j+1)
 						GT => pure (Right ())
