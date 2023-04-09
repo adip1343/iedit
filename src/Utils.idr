@@ -19,20 +19,41 @@ namespace utils
 				GT => mx
 				EQ => mx
 				LT => x
+	export
+	length : Maybe String -> Int
+	length (Just s) = cast (length s)
+	length Nothing = 0
 
 	export
-	moveCursor : (Int, Int) -> EditorState -> EditorState
-	moveCursor (dx, dy) e 
-		= let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in
-			case (index' (cast cy) rows) of
-				Just line => set_cursor ((clip (cx+dx) 0 (cast (length line))) , (clip (cy+dy) 0 numRows)) e 
-				Nothing => set_cursor (cx , (clip (cy+dy) 0 numRows)) e
+	tabStop : Int
+	tabStop = 4
+
+	tabToSpaces' : (row : List Char) -> (cx : Int) -> (rx : Int) -> List Char
+	tabToSpaces' [] _ _ = []
+	tabToSpaces' (x :: xs) cx rx = case x == '\t' of
+		True => let t = tabStop - (mod rx tabStop) in
+			(replicate (cast t) ' ') ++ (tabToSpaces' xs (cx+1) (rx+t))
+		False =>  x :: (tabToSpaces' xs (cx+1) (rx+1))
+
+	tabToSpaces : String -> String
+	tabToSpaces s = pack (tabToSpaces' (unpack s) 0 0)
 
 	export
-	editorScroll : EditorState -> EditorState
-	editorScroll e = let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in
-						let (updatedOffx, updatedOffy) = (min cx offx, min cy offy) in		-- scroll up to cursor
-							set_offset (max updatedOffx (cx - col + 1), max updatedOffy (cy - row + 1)) e
+	updateErow : String -> Erow
+	updateErow s = MkErow s (tabToSpaces s)
+
+	mapCxToRx' : (row : List Char) -> (cx : Int) -> (j : Int) -> (rx : Int) -> Int
+	mapCxToRx' [] cx j rx = rx
+	mapCxToRx' (x :: xs) cx j rx = case j == cx of 
+		True => rx 
+		False => case x == '\t' of
+			True => mapCxToRx' xs cx (j+1) (rx + tabStop - (mod rx tabStop))
+			False => mapCxToRx' xs cx (j+1) (rx + 1)
+
+	export
+	mapCxToRx : (row : Erow) -> (cx : Int) -> Int
+	mapCxToRx row cx = let (MkErow cs rs) = row in 
+		mapCxToRx' (unpack cs) cx 0 0
 
 
 namespace escapes
@@ -52,5 +73,6 @@ namespace escapes
 	showCursor : String
 	showCursor = "\ESC[?25h"
 
+	export
 	clearLineRightOfCursor : String
 	clearLineRightOfCursor = "\ESC[K"
