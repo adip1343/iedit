@@ -54,7 +54,32 @@ namespace utils
 	mapCxToRx : (row : Erow) -> (cx : Int) -> Int
 	mapCxToRx row cx = let (MkErow cs rs) = row in 
 		mapCxToRx' (unpack cs) cx 0 0
+	
+	pad' : (len : Int) -> List Char -> List Char
+	pad' len [] 		= replicate (cast len) ' '
+	pad' 0 _ 			= []
+	pad' len (x :: xs) 	= x :: (pad' (len-1) xs)  
 
+	export
+	pad : (len : Int) -> String -> String
+	pad len s = pack (pad' len (unpack s))
+
+	export
+	insertAt : String -> (i : Int) -> (c : Char) -> String 
+	insertAt s i c = (substr (cast 0) (cast i) s) ++ (singleton c) ++ (substr (cast i) (length s) s) 
+
+	export
+	removeAt : String -> (i : Int) -> String
+	removeAt s i = (substr (cast 0) (cast i) s) ++ (substr (cast (i+1)) (length s) s)
+
+	removeFirst : List a -> List a
+	removeFirst [] = []
+	removeFirst (x :: xs) = xs
+	
+	export
+	updateAt : List a -> (i : Int) -> a -> List a
+	updateAt xs i x = let (xl, xr) = splitAt (cast i) xs in
+		xl ++ [x] ++ removeFirst xr
 
 namespace escapes
 	export
@@ -76,3 +101,11 @@ namespace escapes
 	export
 	clearLineRightOfCursor : String
 	clearLineRightOfCursor = "\ESC[K"
+
+	export
+	invertColors : String
+	invertColors = "\ESC[7m"
+
+	export
+	unsetInvertColors : String
+	unsetInvertColors = "\ESC[m"

@@ -18,11 +18,13 @@ record EditorState where
 	screen : (Int, Int)
 	offset : (Int, Int)
 	numRows : Int
+	status : String
+	fileName : String
 	rows : List Erow
 
 export
 initialEditorState : EditorState
-initialEditorState = MkEditor (0, 0) 0 (0, 0) (0, 0) 0 []
+initialEditorState = MkEditor (0, 0) 0 (0, 0) (0, 0) 0 "" "" []
 
 public export
 data Key = CtrlQ 

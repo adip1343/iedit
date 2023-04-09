@@ -7,26 +7,34 @@ import Update
 
 -- draws rows to screen
 editorDrawRows : EditorState -> (j : Int) ->  IO (Either () ())
-editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows rows = e in
+editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ _ rows = e in
 	let i = j + offy in 
 		let Just toDraw = if i < nRows then (index' (cast i) rows) else (Just emptyErow) in  
 			do
-				case compare j (row-1) of
-					LT => do
+				case j < row of
+					True => do
 						writeBuffer (substr (cast offx) (cast col) (render toDraw)) 
 						writeBuffer (clearLineRightOfCursor ++ "\r\n")
 						editorDrawRows e (j+1)
-					EQ => do
-						writeBuffer (substr (cast offx) (cast col) (render toDraw))
-						writeBuffer clearLineRightOfCursor
-						editorDrawRows e (j+1)
-					GT => pure (Right ())
+					False => pure (Right ())
 
 -- read file content into list of strings
 editorReadFile : (fileName : String) -> IO (Either () (List Erow))
 editorReadFile fileName = do
 	Right text <- readFile fileName | Left fileError => pure (Left ())
 	pure (Right (map updateErow (lines text)))
+
+editorDrawStatusBar : EditorState -> IO (Either () ())
+editorDrawStatusBar e 
+	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ fileName rows = e in
+		let msg = ((if fileName == "" then "[No Name]" else fileName) ++ 
+			(" - " ++ (show nRows) ++ " lines")) ++
+			("            Ln " ++ (show (cy+1)) ++ ", " ++ "Col " ++ (show (rx+1))) in
+			do
+				writeBuffer invertColors
+				writeBuffer (pad col msg)
+				writeBuffer (unsetInvertColors)
+				pure (Right ())
 
 -- get name of file from command line args
 editorGetFileName : IO (Either () String)
@@ -52,6 +60,7 @@ implementation EditorIO IO where
 	loadFile editor = do
 		Right fileName <- lift $ editorGetFileName | Left noFile => pure (Right ())
 		Right fileLines <- lift $ editorReadFile fileName | Left fileError => pure (Left ())
+		update editor (set_fileName fileName)
 		update editor (set_numRows (cast (length fileLines)))
 		update editor (set_rows fileLines)
 		pure (Right ())
@@ -61,7 +70,7 @@ implementation EditorIO IO where
 		editor <- new initialEditorState
 		Right (r, c) <- lift getWindowSize | Left () => pure editor
 		e <- read editor
-		update editor (set_screen (r, c))
+		update editor (set_screen (r-1, c))
 		Right () <- loadFile editor | Left () => pure editor
 		pure editor
 
@@ -89,7 +98,8 @@ implementation EditorIO IO where
 		lift $ writeBuffer hideCursor	
 		lift $ writeBuffer (escapes.moveCursor (0, 0))	 
 		lift $ editorDrawRows !(read editor) 0
-		MkEditor (cx, cy) rx (row, col) (offx, offy) numRows rows <- read editor
+		lift $ editorDrawStatusBar !(read editor)
+		MkEditor (cx, cy) rx (row, col) (offx, offy) numRows _ _ rows <- read editor
 		lift $ writeBuffer (escapes.moveCursor (rx - offx, cy - offy))
 		lift $ writeBuffer showCursor
 	
