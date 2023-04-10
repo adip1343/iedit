@@ -25,10 +25,6 @@ namespace utils
 	length (Just s) = cast (length s)
 	length Nothing = 0
 
-	export
-	tabStop : Int
-	tabStop = 4
-
 	tabToSpaces' : (row : List Char) -> (cx : Int) -> (rx : Int) -> List Char
 	tabToSpaces' [] _ _ = []
 	tabToSpaces' (x :: xs) cx rx = case x == '\t' of
@@ -93,6 +89,13 @@ namespace utils
 	removeChar : (row :Erow) -> (i : Int) -> Erow
 	removeChar row i = let MkErow chars render = row in
 		updateErow (removeAt chars i)
+
+	-- append i and i-1 row and return position of last character in first row
+	export
+	appendRows : (rows : List Erow) -> (i : Int) -> (Int, List Erow)
+	appendRows [] _ = (0, [])
+	appendRows (row1 :: row2 :: rows) 1 = ((cast (length (chars row1))), (updateErow ((chars row1) ++ (chars row2))) :: rows)
+	appendRows (row :: rows) i = let (j, rows') = appendRows rows (i-1) in (j, row :: rows')  
 
 namespace escapes
 	export

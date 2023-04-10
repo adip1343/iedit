@@ -20,8 +20,9 @@ editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ _
 
 editorDrawStatusBar : EditorState -> IO (Either () ())
 editorDrawStatusBar e 
-	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ fileName rows = e in
+	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows inSync fileName rows = e in
 		let msg = ((if fileName == "" then "[No Name]" else fileName) ++ 
+			(if inSync then "" else "(modified)") ++
 			(" - " ++ (show nRows) ++ " lines")) ++
 			("            Ln " ++ (show (cy+1)) ++ ", " ++ "Col " ++ (show (rx+1))) in
 			do
@@ -78,6 +79,7 @@ implementation EditorIO IO where
 	saveFile editor = do
 		MkEditor _ _ _ _ _ _ fileName rows <- read editor
 		Right () <- lift $ editorWriteFile fileName rows | Left fileError => pure (Left ())
+		update editor (set_inSync True)
 		pure(Right ())
 
 	init = do
@@ -96,6 +98,7 @@ implementation EditorIO IO where
 	-- other keys
 	handleKeypress editor (CharKey key) = do
 		update editor (editorInsertChar (CharKey key))
+		update editor (set_inSync False)
 		update editor editorRecalculateNumRows
 		pure (Right ())
 
@@ -107,6 +110,13 @@ implementation EditorIO IO where
 
 	-- Ctrl-S
 	handleKeypress editor CtrlS = saveFile editor
+
+	--backSpace 
+	handleKeypress editor BackSpace = do
+		update editor editorRemoveChar
+		update editor (set_inSync False)
+		update editor editorRecalculateNumRows
+		pure (Right ())
 
 	-- movement keys
 	handleKeypress editor key = do

@@ -28,6 +28,21 @@ editorInsertChar (CharKey key) e
 			(set_cursor (cx+1, cy) e))
 
 export
+editorRemoveChar : EditorState -> EditorState
+editorRemoveChar e
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+		case (index' (cast cy) rows) of 
+			Just row => case cx == 0 of 
+				True => case cy == 0 of
+					True => e
+					False => let (updatedCx, updatedRows) = appendRows rows cy in
+						(set_rows updatedRows
+						(set_cursor (updatedCx, cy-1) e))
+				False => (set_rows (updateAt rows cy (removeChar row (cx-1)))
+						(set_cursor (cx-1, cy) e))
+			Nothing => e 
+
+export
 editorRecalculateNumRows : EditorState -> EditorState
 editorRecalculateNumRows e
 	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in

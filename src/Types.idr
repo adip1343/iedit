@@ -18,13 +18,13 @@ record EditorState where
 	screen : (Int, Int)
 	offset : (Int, Int)
 	numRows : Int
-	status : String
+	inSync : Bool		-- File is same as in disk
 	fileName : String
 	rows : List Erow
 
 export
 initialEditorState : EditorState
-initialEditorState = MkEditor (0, 0) 0 (0, 0) (0, 0) 0 "" "" []
+initialEditorState = MkEditor (0, 0) 0 (0, 0) (0, 0) 0 True "" []
 
 public export
 data Key = CtrlQ
@@ -38,7 +38,7 @@ data Key = CtrlQ
 		| ArrowLeft 
 		| ArrowRight 
 		| Delete 
-		| Space
+		| BackSpace
 		| Enter
 		| CharKey Int
 
@@ -56,6 +56,10 @@ intToKey 1003 	= ArrowDown
 -- intToKey 1006 	= End
 -- intToKey 1007	= PageUp
 -- intToKey 1008 	= PageDown
--- intToKey 127	= Space
+intToKey 127	= BackSpace
 intToKey key	= CharKey key
 
+-- Settings
+export
+tabStop : Int
+tabStop = 4
