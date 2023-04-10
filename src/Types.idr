@@ -27,7 +27,8 @@ initialEditorState : EditorState
 initialEditorState = MkEditor (0, 0) 0 (0, 0) (0, 0) 0 "" "" []
 
 public export
-data Key = CtrlQ 
+data Key = CtrlQ
+		| CtrlS
 		| Home 
 		| End 
 		| PageUp 
@@ -38,11 +39,14 @@ data Key = CtrlQ
 		| ArrowRight 
 		| Delete 
 		| Space
+		| Enter
 		| CharKey Int
 
 export
 intToKey : Int -> Key
+-- intToKey 13		= Enter
 intToKey 17 	= CtrlQ
+intToKey 19		= CtrlS
 intToKey 1000 	= ArrowLeft
 intToKey 1001 	= ArrowRight
 intToKey 1002 	= ArrowUp

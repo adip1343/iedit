@@ -3,6 +3,7 @@ module Utils
 import Types
 
 namespace utils
+	export
 	ctrl : Char -> Int
 	ctrl key = prim__andInt 0x1f (prim__charToInt key)
 
@@ -75,11 +76,23 @@ namespace utils
 	removeFirst : List a -> List a
 	removeFirst [] = []
 	removeFirst (x :: xs) = xs
-	
+
 	export
 	updateAt : List a -> (i : Int) -> a -> List a
 	updateAt xs i x = let (xl, xr) = splitAt (cast i) xs in
 		xl ++ [x] ++ removeFirst xr
+
+	-- insert character and update rendered row
+	export
+	insertChar : (row :Erow) -> (i : Int) -> (c : Char) -> Erow
+	insertChar row i c = let MkErow chars render = row in
+		updateErow (insertAt chars i c)
+
+	-- remove character and update rendered row
+	export
+	removeChar : (row :Erow) -> (i : Int) -> Erow
+	removeChar row i = let MkErow chars render = row in
+		updateErow (removeAt chars i)
 
 namespace escapes
 	export

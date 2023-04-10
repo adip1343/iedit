@@ -18,12 +18,6 @@ editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ _
 						editorDrawRows e (j+1)
 					False => pure (Right ())
 
--- read file content into list of strings
-editorReadFile : (fileName : String) -> IO (Either () (List Erow))
-editorReadFile fileName = do
-	Right text <- readFile fileName | Left fileError => pure (Left ())
-	pure (Right (map updateErow (lines text)))
-
 editorDrawStatusBar : EditorState -> IO (Either () ())
 editorDrawStatusBar e 
 	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ fileName rows = e in
@@ -36,6 +30,7 @@ editorDrawStatusBar e
 				writeBuffer (unsetInvertColors)
 				pure (Right ())
 
+
 -- get name of file from command line args
 editorGetFileName : IO (Either () String)
 editorGetFileName = do
@@ -44,10 +39,25 @@ editorGetFileName = do
 		True => pure (Left ())
 		False => let Just fileName = (index' (cast 1) args) in pure (Right fileName)
 
+-- read file content into list of strings
+editorReadFile : (fileName : String) -> IO (Either () (List Erow))
+editorReadFile fileName = do
+	Right text <- readFile fileName | Left fileError => pure (Left ())
+	pure (Right (map updateErow (lines text)))
+
+-- write file content to disk
+editorWriteFile : (fileName : String) -> (rows : List Erow) -> IO (Either () ())
+editorWriteFile fileName rows 
+	= let toWrite =  unlines (map chars rows) in
+		do
+			Right () <- writeFile fileName toWrite | Left fileError => pure (Left ())
+			pure (Right ())
+
 interface EditorIO (m : Type -> Type) where
 	Editor : Type
 	init : ST m Var [add Editor]
 	loadFile : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
+	saveFile : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
 	handleKeypress : (editor : Var) -> (key : Key) -> ST m (Either () ()) [editor ::: Editor]
 	refreshScreen : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
 	close : (editor : Var) -> ST m () [Remove editor Editor]
@@ -64,6 +74,11 @@ implementation EditorIO IO where
 		update editor (set_numRows (cast (length fileLines)))
 		update editor (set_rows fileLines)
 		pure (Right ())
+	
+	saveFile editor = do
+		MkEditor _ _ _ _ _ _ fileName rows <- read editor
+		Right () <- lift $ editorWriteFile fileName rows | Left fileError => pure (Left ())
+		pure(Right ())
 
 	init = do
 		lift enterRawMode 
@@ -79,13 +94,19 @@ implementation EditorIO IO where
 		pure (Right key)
 	
 	-- other keys
-	handleKeypress editor (CharKey key) = pure (Right ())
+	handleKeypress editor (CharKey key) = do
+		update editor (editorInsertChar (CharKey key))
+		update editor editorRecalculateNumRows
+		pure (Right ())
 
 	-- Ctrl-Q
 	handleKeypress editor CtrlQ = do
 		lift $ writeBuffer clearScreen
 		lift $ writeBuffer (escapes.moveCursor (0, 0))
 		pure (Left ())
+
+	-- Ctrl-S
+	handleKeypress editor CtrlS = saveFile editor
 
 	-- movement keys
 	handleKeypress editor key = do
@@ -99,10 +120,10 @@ implementation EditorIO IO where
 		lift $ writeBuffer (escapes.moveCursor (0, 0))	 
 		lift $ editorDrawRows !(read editor) 0
 		lift $ editorDrawStatusBar !(read editor)
-		MkEditor (cx, cy) rx (row, col) (offx, offy) numRows _ _ rows <- read editor
+		MkEditor (cx, cy) rx _ (offx, offy) numRows _ _ rows <- read editor
 		lift $ writeBuffer (escapes.moveCursor (rx - offx, cy - offy))
 		lift $ writeBuffer showCursor
-	
+
 	close editor = delete editor
 
 -- event loop listening to keypress and updating

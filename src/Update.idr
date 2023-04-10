@@ -20,6 +20,20 @@ editorScroll e
 			set_offset (max updatedOffx (rx - col + 1), max updatedOffy (cy - row + 1)) e		
 
 export
+editorInsertChar : Key -> EditorState -> EditorState
+editorInsertChar (CharKey key) e
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+		let Just row = if cy < numRows then (index' (cast cy) rows) else Just (MkErow "" "") in
+			(set_rows (updateAt rows cy (insertChar row cx (cast key))) 
+			(set_cursor (cx+1, cy) e))
+
+export
+editorRecalculateNumRows : EditorState -> EditorState
+editorRecalculateNumRows e
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+		set_numRows (cast (length rows)) e
+
+export
 editorCursorMovement : Key -> EditorState -> EditorState
 editorCursorMovement ArrowLeft e 
 	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
@@ -63,11 +77,7 @@ editorCursorMovement ArrowDown e
 			-- move one row below and snap cursor to end of line
 			False => case index' (cast (cy+1)) rows of
 				Just line 	=> set_cursor (min cx (cast (length (chars line))), cy+1) e
-				Nothing		=> set_cursor (0, cy+1) e
-
-editorCursorMovement (CharKey key) e
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
-		e
+				Nothing		=> set_cursor (0, cy+1) e		
 
 -- editorCursorMovement Home e
 -- 	= let MkEditor (cx, cy) (row, col) (offx, offy) numRows rows = e in
