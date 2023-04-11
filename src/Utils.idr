@@ -97,6 +97,16 @@ namespace utils
 	appendRows (row1 :: row2 :: rows) 1 = ((cast (length (chars row1))), (updateErow ((chars row1) ++ (chars row2))) :: rows)
 	appendRows (row :: rows) i = let (j, rows') = appendRows rows (i-1) in (j, row :: rows')  
 
+	splitAt : Int -> Erow -> (Erow, Erow)
+	splitAt	i row = let (s1, s2) = splitAt (cast i) (unpack (chars row)) in 
+		(updateErow (pack s1), updateErow (pack s2))
+
+	export
+	splitRow : (rows : List Erow) -> (i : Int) -> (j : Int) -> List Erow
+	splitRow [] _ _ = []
+	splitRow (row :: rows) 0 j = let (row1, row2) = splitAt j row in row1 :: row2 :: rows
+	splitRow (row :: rows) i j = row :: (splitRow rows (i-1) j)
+
 namespace escapes
 	export
 	clearScreen : String

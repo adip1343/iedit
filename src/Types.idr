@@ -44,7 +44,7 @@ data Key = CtrlQ
 
 export
 intToKey : Int -> Key
--- intToKey 13		= Enter
+intToKey 13		= Enter
 intToKey 17 	= CtrlQ
 intToKey 19		= CtrlS
 intToKey 1000 	= ArrowLeft

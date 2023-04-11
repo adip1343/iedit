@@ -27,19 +27,31 @@ editorInsertChar (CharKey key) e
 			(set_rows (updateAt rows cy (insertChar row cx (cast key))) 
 			(set_cursor (cx+1, cy) e))
 
+editorInsertChar Enter e
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+		case cy == numRows of
+			True => e
+			False => set_rows (splitRow rows cy cx) (set_cursor (0, cy+1) e)
+
 export
 editorRemoveChar : EditorState -> EditorState
 editorRemoveChar e
 	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
-		case (index' (cast cy) rows) of 
+		case (index' (cast cy) rows) of
+			-- row contains characters 
 			Just row => case cx == 0 of 
+				-- first char of row
 				True => case cy == 0 of
+					-- at top left do nothing
 					True => e
+					-- merge with row above
 					False => let (updatedCx, updatedRows) = appendRows rows cy in
 						(set_rows updatedRows
 						(set_cursor (updatedCx, cy-1) e))
+				-- simply delete char
 				False => (set_rows (updateAt rows cy (removeChar row (cx-1)))
 						(set_cursor (cx-1, cy) e))
+			-- at last row do nothing
 			Nothing => e 
 
 export

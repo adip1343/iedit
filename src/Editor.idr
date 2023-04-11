@@ -118,6 +118,13 @@ implementation EditorIO IO where
 		update editor editorRecalculateNumRows
 		pure (Right ())
 
+	--Enter
+	handleKeypress editor Enter = do
+		update editor (editorInsertChar Enter)
+		update editor (set_inSync False)
+		update editor editorRecalculateNumRows
+		pure (Right ())
+
 	-- movement keys
 	handleKeypress editor key = do
 		update editor (editorCursorMovement key)
