@@ -9,6 +9,8 @@
 #define PAGE_DOWN 1008
 #define BACKSPACE 127
 
+#include <idris_rts.h>
+
 void enterRawMode();
 char readChar();
 char readCharBlocking();
@@ -16,3 +18,4 @@ int writeBuffer(const char* buf, int size);
 int getWindowCols();
 int getWindowRows();
 int editorReadKey();
+const VAL runCommand(char *command);

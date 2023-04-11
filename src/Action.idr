@@ -8,7 +8,7 @@ import Update
 -- draws rows to screen
 export
 editorDrawRows : EditorState -> (j : Int) ->  IO (Either () ())
-editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ _ rows = e in
+editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ _ _ rows = e in
 	let i = j + offy in 
 		let Just toDraw = if i < nRows then (index' (cast i) rows) else (Just emptyErow) in  
 			do
@@ -23,7 +23,7 @@ editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ _
 export
 editorDrawStatusBar : EditorState -> IO (Either () ())
 editorDrawStatusBar e 
-	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows inSync fileName rows = e in
+	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows inSync fileName _ rows = e in
 		let msg = ((if fileName == "" then "[No Name]" else fileName) ++ 
 			(if inSync then "" else "(modified)") ++
 			(" - " ++ (show nRows) ++ " lines")) ++
@@ -32,8 +32,15 @@ editorDrawStatusBar e
 				writeBuffer invertColors
 				writeBuffer (pad col msg)
 				writeBuffer (unsetInvertColors)
+				writeBuffer "\r\n"
 				pure (Right ())
 
+export
+editorDrawOutputBar : EditorState -> IO (Either () ())
+editorDrawOutputBar e 
+	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows inSync fileName status rows = e in
+		writeBuffer (status ++ clearLineRightOfCursor)
+		
 
 -- get name of file from command line args
 export

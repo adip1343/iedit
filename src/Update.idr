@@ -6,7 +6,7 @@ import Utils
 export
 editorRenderx : EditorState -> EditorState
 editorRenderx e 
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		case index' (cast cy) rows of
 			Just line => let updatedRx = mapCxToRx line cx in
 				set_renderx updatedRx e 
@@ -15,13 +15,13 @@ editorRenderx e
 export
 editorScroll : EditorState -> EditorState
 editorScroll e 
-	= let MkEditor (cx, cy) rx (row, col) (offx, offy) numRows _ _ _ = e in
+	= let MkEditor (cx, cy) rx (row, col) (offx, offy) numRows _ _ _ _ = e in
 		let (updatedOffx, updatedOffy) = (min rx offx, min cy offy) in		-- scroll up to cursor
 			set_offset (max updatedOffx (rx - col + 1), max updatedOffy (cy - row + 1)) e		
 
 export
 editorGetIdentifierUnderCursor : EditorState -> Either () String
-editorGetIdentifierUnderCursor e = let MkEditor (cx, cy) _ _ _ numRows _ _ rows = e in
+editorGetIdentifierUnderCursor e = let MkEditor (cx, cy) _ _ _ numRows _ _ _ rows = e in
 	case (index' (cast cy) rows) of
 		Just row => getIdentifierUnderCursor cx row
 		Nothing => Left ()
@@ -29,13 +29,13 @@ editorGetIdentifierUnderCursor e = let MkEditor (cx, cy) _ _ _ numRows _ _ rows 
 export
 editorInsertChar : Key -> EditorState -> EditorState
 editorInsertChar (CharKey key) e
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		let Just row = if cy < numRows then (index' (cast cy) rows) else Just (MkErow "" "") in
 			(set_rows (updateAt rows cy (insertChar row cx (cast key))) 
 			(set_cursor (cx+1, cy) e))
 
 editorInsertChar Enter e
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ r_ rows = e in
 		case cy == numRows of
 			True => e
 			False => set_rows (splitRow rows cy cx) (set_cursor (0, cy+1) e)
@@ -43,7 +43,7 @@ editorInsertChar Enter e
 export
 editorRemoveChar : EditorState -> EditorState
 editorRemoveChar e
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		case (index' (cast cy) rows) of
 			-- row contains characters 
 			Just row => case cx == 0 of 
@@ -61,16 +61,27 @@ editorRemoveChar e
 			-- at last row do nothing
 			Nothing => e 
 
+namespace cmd
+	export 
+	loadFile : EditorState -> String
+	loadFile e = let MkEditor _ _ _ _ _ _ fileName _ rows = e in
+		":l " ++ fileName
+
+	export
+	getType : String -> String
+	getType identifer = ":t " ++ identifer
+
+
 export
 editorRecalculateNumRows : EditorState -> EditorState
 editorRecalculateNumRows e
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		set_numRows (cast (length rows)) e
 
 export
 editorCursorMovement : Key -> EditorState -> EditorState
 editorCursorMovement ArrowLeft e 
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		case cx == 0 of
 			-- moving to last char of row above
 			True => case cy == 0 of
@@ -83,7 +94,7 @@ editorCursorMovement ArrowLeft e
 			False => set_cursor (cx - 1, cy) e			 
 
 editorCursorMovement ArrowRight e 
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		case (index' (cast cy) rows) of
 			-- row contains text
 			Just line => case cx == cast (length (chars line)) of
@@ -95,7 +106,7 @@ editorCursorMovement ArrowRight e
 			Nothing => e
 
 editorCursorMovement ArrowUp e
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		case cy == 0 of
 			-- aready at top row 
 			True => e
@@ -104,7 +115,7 @@ editorCursorMovement ArrowUp e
 				set_cursor (min cx (cast (length (chars line))), cy-1) e
 
 editorCursorMovement ArrowDown e
-	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
+	= let MkEditor (cx, cy) rx _ _ numRows _ _ _ rows = e in
 		case cy == numRows of
 			-- already at bottom row
 			True => e

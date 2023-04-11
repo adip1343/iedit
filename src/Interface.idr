@@ -8,10 +8,13 @@ import Utils
 
 -- ffi interface for call to C functions
 namespace raw
-	-- enters raw mode
+	-- enter:s raw mode
 	export
 	enterRawMode : IO ()
 	enterRawMode = foreign FFI_C "enterRawMode" (IO ())
+
+	runCommand : String -> IO (Raw String)
+	runCommand cmd = foreign FFI_C "runCommand" (String -> IO (Raw String)) cmd
 
 	readChar : IO Char
 	readChar = foreign FFI_C "readChar" (IO Char)
@@ -62,3 +65,9 @@ getWindowSize = do
 			case cols == 0 of
 				True => pure (Left ())
 				False => pure (Right (rows, cols))
+
+export
+runCommand : String -> IO String
+runCommand cmd = do
+	MkRaw result <- raw.runCommand ("idris --client \"" ++ cmd ++"\"") 
+	pure result

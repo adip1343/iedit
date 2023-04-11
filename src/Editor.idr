@@ -29,7 +29,7 @@ implementation EditorIO IO where
 		pure (Right ())
 	
 	saveFile editor = do
-		MkEditor _ _ _ _ _ _ fileName rows <- read editor
+		MkEditor _ _ _ _ _ _ fileName _ rows <- read editor
 		Right () <- lift $ editorWriteFile fileName rows | Left fileError => pure (Left ())
 		update editor (set_inSync True)
 		pure(Right ())
@@ -37,7 +37,7 @@ implementation EditorIO IO where
 	init = do 
 		Right (r, c) <- lift getWindowSize | Left () => pure (Left ())
 		editor <- new initialEditorState
-		update editor (set_screen (r-1, c))
+		update editor (set_screen (r-2, c))
 		Right () <- loadFile editor | Left () => do
 			delete editor
 			pure (Left ())
@@ -68,6 +68,18 @@ implementation EditorIO IO where
 	-- Ctrl-S
 	handleKeypress editor CtrlS = saveFile editor
 
+	-- Ctrl T
+	handleKeypress editor CtrlT = do
+		saveFile editor
+		e <- read editor
+		lift $ runCommand (loadFile e)
+		case (editorGetIdentifierUnderCursor e) of
+			Right identifer => do
+				type <- lift $ runCommand (getType identifer)
+				update editor (set_status (getFinalLine type))
+				pure (Right ())
+			Left () => pure (Right ()) 
+
 	--backSpace 
 	handleKeypress editor BackSpace = do
 		update editor editorRemoveChar
@@ -94,7 +106,8 @@ implementation EditorIO IO where
 		lift $ writeBuffer (escapes.moveCursor (0, 0))	 
 		lift $ editorDrawRows !(read editor) 0
 		lift $ editorDrawStatusBar !(read editor)
-		MkEditor (cx, cy) rx _ (offx, offy) numRows _ _ rows <- read editor
+		lift $ editorDrawOutputBar !(read editor)
+		MkEditor (cx, cy) rx _ (offx, offy) numRows _ _ _ rows <- read editor
 		lift $ writeBuffer (escapes.moveCursor (rx - offx, cy - offy))
 		lift $ writeBuffer showCursor
 

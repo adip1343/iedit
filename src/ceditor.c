@@ -1,5 +1,4 @@
 // includes ----------------------------------------------
-#include "ceditor.h"
 #include <stdlib.h>
 #include <termios.h>
 #include <unistd.h>
@@ -8,6 +7,9 @@
 #include <errno.h>
 #include <sys/ioctl.h>
 #include <assert.h>
+#include <idris_rts.h>
+#include <strings.h>
+#include "ceditor.h"
 
 // global structs ----------------------------------------
 struct termios orig_termios;
@@ -131,4 +133,34 @@ int getWindowRows(){
 		return 0;
 	}
 	return ws.ws_row;
+}
+
+// safe way to return c string for idris ffi
+const VAL idrisString(char* c_string){
+	const VAL idris_string = MKSTR(get_vm(), c_string);
+    if(c_string != NULL) free(c_string);
+    return idris_string;
+}
+
+const VAL runCommand(char *command) {
+    FILE *pipe = NULL;
+	char *buffer = NULL;
+
+    if ((pipe = popen(command, "r")) == NULL) {
+        return idrisString(buffer);
+    }
+
+    char line[256];
+    size_t buffer_size = 0;
+    
+    while (fgets(line, sizeof (line), pipe)) {
+        size_t line_length = strlen(line);
+        buffer = realloc(buffer, buffer_size + line_length + 1);
+        memcpy(buffer + buffer_size, line, line_length + 1);
+        buffer_size += line_length;
+    }
+                
+    pclose(pipe);
+
+    return idrisString(buffer);
 }

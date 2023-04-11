@@ -109,7 +109,6 @@ namespace utils
 
 	export
 	isPrint : Char -> Bool
-	isPrint _ = True
 	isPrint '\t' = True
 	isPrint '\ESC' = False
 	isPrint c = (not . isControl) c
@@ -137,6 +136,12 @@ namespace utils
 			let (leftId, _) = span identifierChar (reverse left) in
 				validId ((reverse leftId) ++ rightId)
 
+	export
+	getFinalLine : String -> String
+	getFinalLine output = let outputlines = lines output in
+		case last' outputlines of
+			Just line => line
+			Nothing => ""
 
 namespace escapes
 	export
