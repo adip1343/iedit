@@ -97,15 +97,46 @@ namespace utils
 	appendRows (row1 :: row2 :: rows) 1 = ((cast (length (chars row1))), (updateErow ((chars row1) ++ (chars row2))) :: rows)
 	appendRows (row :: rows) i = let (j, rows') = appendRows rows (i-1) in (j, row :: rows')  
 
-	splitAt : Int -> Erow -> (Erow, Erow)
-	splitAt	i row = let (s1, s2) = splitAt (cast i) (unpack (chars row)) in 
-		(updateErow (pack s1), updateErow (pack s2))
+	splitAt : Int -> String -> (String, String)
+	splitAt	i row = let (s1, s2) = splitAt (cast i) (unpack row) in (pack s1, pack s2)
 
 	export
 	splitRow : (rows : List Erow) -> (i : Int) -> (j : Int) -> List Erow
 	splitRow [] _ _ = []
-	splitRow (row :: rows) 0 j = let (row1, row2) = splitAt j row in row1 :: row2 :: rows
+	splitRow (row :: rows) 0 j = let (row1, row2) = splitAt j (chars row) in 
+		(updateErow row1) :: (updateErow row2) :: rows
 	splitRow (row :: rows) i j = row :: (splitRow rows (i-1) j)
+
+	export
+	isPrint : Char -> Bool
+	isPrint _ = True
+	isPrint '\t' = True
+	isPrint '\ESC' = False
+	isPrint c = (not . isControl) c
+
+	identifierChar : Char -> Bool
+	identifierChar '.' = True
+	identifierChar '\'' = True
+	identifierChar '_' = True
+	identifierChar c = isAlphaNum c
+
+	identifierStart : Char -> Bool
+	identifierStart '_' = True
+	identifierStart c = isAlpha c
+
+	validId : String -> Either () String 
+	validId "" = Left ()
+	validId s = case identifierStart (strHead s) of 
+		True => Right s 
+		False => Left ()
+	
+	export
+	getIdentifierUnderCursor : Int -> Erow -> Either () String
+	getIdentifierUnderCursor i row = let (left, right) = splitAt i (chars row) in
+		let (rightId, _) = span identifierChar right in
+			let (leftId, _) = span identifierChar (reverse left) in
+				validId ((reverse leftId) ++ rightId)
+
 
 namespace escapes
 	export

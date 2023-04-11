@@ -3,60 +3,12 @@ import Control.ST.ImplicitCall
 import Types
 import Interface
 import Utils
-import Update 
-
--- draws rows to screen
-editorDrawRows : EditorState -> (j : Int) ->  IO (Either () ())
-editorDrawRows  e j = let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows _ _ rows = e in
-	let i = j + offy in 
-		let Just toDraw = if i < nRows then (index' (cast i) rows) else (Just emptyErow) in  
-			do
-				case j < row of
-					True => do
-						writeBuffer (substr (cast offx) (cast col) (render toDraw)) 
-						writeBuffer (clearLineRightOfCursor ++ "\r\n")
-						editorDrawRows e (j+1)
-					False => pure (Right ())
-
-editorDrawStatusBar : EditorState -> IO (Either () ())
-editorDrawStatusBar e 
-	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows inSync fileName rows = e in
-		let msg = ((if fileName == "" then "[No Name]" else fileName) ++ 
-			(if inSync then "" else "(modified)") ++
-			(" - " ++ (show nRows) ++ " lines")) ++
-			("            Ln " ++ (show (cy+1)) ++ ", " ++ "Col " ++ (show (rx+1))) in
-			do
-				writeBuffer invertColors
-				writeBuffer (pad col msg)
-				writeBuffer (unsetInvertColors)
-				pure (Right ())
-
-
--- get name of file from command line args
-editorGetFileName : IO (Either () String)
-editorGetFileName = do
-	args <- getArgs
-	case length args < 2 of
-		True => pure (Left ())
-		False => let Just fileName = (index' (cast 1) args) in pure (Right fileName)
-
--- read file content into list of strings
-editorReadFile : (fileName : String) -> IO (Either () (List Erow))
-editorReadFile fileName = do
-	Right text <- readFile fileName | Left fileError => pure (Left ())
-	pure (Right (map updateErow (lines text)))
-
--- write file content to disk
-editorWriteFile : (fileName : String) -> (rows : List Erow) -> IO (Either () ())
-editorWriteFile fileName rows 
-	= let toWrite =  unlines (map chars rows) in
-		do
-			Right () <- writeFile fileName toWrite | Left fileError => pure (Left ())
-			pure (Right ())
+import Update
+import Action 
 
 interface EditorIO (m : Type -> Type) where
 	Editor : Type
-	init : ST m Var [add Editor]
+	init : ST m (Either () Var) [addIfRight Editor]
 	loadFile : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
 	saveFile : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
 	handleKeypress : (editor : Var) -> (key : Key) -> ST m (Either () ()) [editor ::: Editor]
@@ -69,7 +21,7 @@ implementation EditorIO IO where
 	Editor = State EditorState
 	
 	loadFile editor = do
-		Right fileName <- lift $ editorGetFileName | Left noFile => pure (Right ())
+		Right fileName <- lift $ editorGetFileName | Left noFile => pure (Left ())
 		Right fileLines <- lift $ editorReadFile fileName | Left fileError => pure (Left ())
 		update editor (set_fileName fileName)
 		update editor (set_numRows (cast (length fileLines)))
@@ -82,14 +34,15 @@ implementation EditorIO IO where
 		update editor (set_inSync True)
 		pure(Right ())
 
-	init = do
-		lift enterRawMode 
+	init = do 
+		Right (r, c) <- lift getWindowSize | Left () => pure (Left ())
 		editor <- new initialEditorState
-		Right (r, c) <- lift getWindowSize | Left () => pure editor
-		e <- read editor
 		update editor (set_screen (r-1, c))
-		Right () <- loadFile editor | Left () => pure editor
-		pure editor
+		Right () <- loadFile editor | Left () => do
+			delete editor
+			pure (Left ())
+		lift enterRawMode
+		pure (Right editor)
 
 	readKey editor = do
 		Right key <- lift editorReadKey | Left () => pure (Left ())
@@ -97,10 +50,14 @@ implementation EditorIO IO where
 	
 	-- other keys
 	handleKeypress editor (CharKey key) = do
-		update editor (editorInsertChar (CharKey key))
-		update editor (set_inSync False)
-		update editor editorRecalculateNumRows
-		pure (Right ())
+		case isPrint (cast key) of
+			-- Insert Printable Characters
+			True => do
+				update editor (editorInsertChar (CharKey key))
+				update editor (set_inSync False)
+				update editor editorRecalculateNumRows
+				pure (Right ())
+			False => pure (Right ())
 
 	-- Ctrl-Q
 	handleKeypress editor CtrlQ = do
@@ -152,9 +109,10 @@ listenEvent editor = do
 		refreshScreen editor
 		listenEvent editor
 
+
 main : IO ()
 main = run (do 
-	editor <- init
+	Right editor <- init | Left () => pure ()
 	refreshScreen editor
 	listenEvent editor
 	close editor)

@@ -20,6 +20,13 @@ editorScroll e
 			set_offset (max updatedOffx (rx - col + 1), max updatedOffy (cy - row + 1)) e		
 
 export
+editorGetIdentifierUnderCursor : EditorState -> Either () String
+editorGetIdentifierUnderCursor e = let MkEditor (cx, cy) _ _ _ numRows _ _ rows = e in
+	case (index' (cast cy) rows) of
+		Just row => getIdentifierUnderCursor cx row
+		Nothing => Left ()
+
+export
 editorInsertChar : Key -> EditorState -> EditorState
 editorInsertChar (CharKey key) e
 	= let MkEditor (cx, cy) rx _ _ numRows _ _ rows = e in
