@@ -68,7 +68,7 @@ implementation EditorIO IO where
 	-- Ctrl-S
 	handleKeypress editor CtrlS = saveFile editor
 
-	-- Ctrl T
+	-- Ctrl T (type search)
 	handleKeypress editor CtrlT = do
 		saveFile editor
 		e <- read editor
@@ -78,8 +78,21 @@ implementation EditorIO IO where
 				type <- lift $ runCommand (getType identifer)
 				update editor (set_status (getFinalLine type))
 				pure (Right ())
-			Left () => pure (Right ()) 
+			Left () => pure (Right ())
 
+	-- Ctrl D (add definition(clause))
+	handleKeypress editor CtrlD = do
+	  	saveFile editor
+		e <- read editor
+		lift $ runCommand (loadFile e)
+		case (editorGetIdentifierUnderCursor e) of
+			Right identifer => do
+				output <- lift $ runCommand (addClause (snd (cursor e)) identifer)
+				--update editor (set_status ()))
+				loadFile editor
+				pure (Right ())
+
+			Left () => pure (Right ())
 	--backSpace 
 	handleKeypress editor BackSpace = do
 		update editor editorRemoveChar

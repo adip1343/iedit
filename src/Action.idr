@@ -39,7 +39,7 @@ export
 editorDrawOutputBar : EditorState -> IO (Either () ())
 editorDrawOutputBar e 
 	= let MkEditor (cx, cy) rx (row, col) (offx, offy) nRows inSync fileName status rows = e in
-		writeBuffer (status ++ clearLineRightOfCursor)
+		writeBuffer ((substr Z (cast col) status) ++ clearLineRightOfCursor)
 		
 
 -- get name of file from command line args

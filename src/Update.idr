@@ -64,12 +64,19 @@ editorRemoveChar e
 namespace cmd
 	export 
 	loadFile : EditorState -> String
-	loadFile e = let MkEditor _ _ _ _ _ _ fileName _ rows = e in
-		":l " ++ fileName
+	loadFile e = ":l " ++ (fileName e)
 
 	export
 	getType : String -> String
 	getType identifer = ":t " ++ identifer
+
+	export
+	addClause : Int -> String -> String
+	addClause i identifer = ":addclause! " ++ (show (i+1)) ++ " " ++ identifer
+
+	export
+	caseSplit : Int -> String -> String
+	caseSplit i identifer = ":casesplit! " ++ (show (i+1)) ++ " " ++ identifer  
 
 
 export
