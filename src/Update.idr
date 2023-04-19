@@ -76,7 +76,11 @@ namespace cmd
 
 	export
 	caseSplit : Int -> String -> String
-	caseSplit i identifer = ":casesplit! " ++ (show (i+1)) ++ " " ++ identifer  
+	caseSplit i identifer = ":casesplit! " ++ (show (i+1)) ++ " " ++ identifer
+
+	export
+	proofSearch : Int -> String -> String
+	proofSearch i identifer = ":proofsearch! " ++ (show (i+1)) ++ " " ++ identifer 
 
 
 export

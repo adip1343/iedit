@@ -4,21 +4,52 @@ import Types
 import Interface
 import Utils
 import Update
-import Action 
+import Action
+
+data EditState = Ready			-- Ready to read next Keypress
+			   | Handling		-- Processing Keypress
+			   | Refreshing		-- Refreshing
+			   | Closed			
+
+data AnyOK : EditState -> Type where
+	ReadyOK : AnyOK Ready
+	HandlingOK : AnyOK Handling
+	RefreshingOK : AnyOK Refreshing
+	ClosedOK : AnyOK Closed
+
+
+data FileState = InSync
+			   | OutOfSync
+
+data BufferState = Flushed 
+				| Filled
 
 interface EditorIO (m : Type -> Type) where
-	Editor : Type
-	init : ST m (Either () Var) [addIfRight Editor]
-	loadFile : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
-	saveFile : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
-	handleKeypress : (editor : Var) -> (key : Key) -> ST m (Either () ()) [editor ::: Editor]
-	refreshScreen : (editor : Var) -> ST m (Either () ()) [editor ::: Editor]
-	close : (editor : Var) -> ST m () [Remove editor Editor]
-	readKey : (editor : Var) -> ST m (Either () Key) [editor ::: Editor]
+	Editor : EditState -> Type
+
+	init : ST m (Either () Var) [addIfRight (Editor Ready)]
+
+	loadFile : (editor : Var) -> 
+		ST m (Either () ()) [editor ::: Editor Ready]
+	
+	saveFile : (editor : Var) -> 
+		ST m (Either () ()) [editor ::: Editor Handling :-> (Editor Closed `or` Editor Ready)]
+
+	handleKeypress : (editor : Var) -> (key : Key) -> 
+		ST m (Either () ()) [editor ::: Editor Handling :-> (Editor Closed `or` Editor Ready)]
+	
+	refreshScreen : (editor : Var) -> 
+		ST m (Either () ()) [editor ::: Editor Ready :-> (Editor Closed `or` Editor Ready)]
+	
+	close : (editor : Var) -> 
+		ST m () [Remove editor (Editor Closed)]
+	
+	readKey : (editor : Var) -> 
+		ST m (Either () Key) [editor ::: Editor Ready :-> (Editor Closed `or` Editor Handling)]
 
 implementation EditorIO IO where
-	
-	Editor = State EditorState
+
+	Editor _ = State EditorState
 	
 	loadFile editor = do
 		Right fileName <- lift $ editorGetFileName | Left noFile => pure (Left ())
@@ -70,7 +101,7 @@ implementation EditorIO IO where
 
 	-- Ctrl T (type search)
 	handleKeypress editor CtrlT = do
-		saveFile editor
+	  	Right () <- saveFile editor | Left () => pure (Left ())
 		e <- read editor
 		lift $ runCommand (loadFile e)
 		case (editorGetIdentifierUnderCursor e) of
@@ -82,7 +113,7 @@ implementation EditorIO IO where
 
 	-- Ctrl D (add definition(clause))
 	handleKeypress editor CtrlD = do
-	  	saveFile editor
+	  	Right () <- saveFile editor | Left () => pure (Left ())
 		e <- read editor
 		lift $ runCommand (loadFile e)
 		case (editorGetIdentifierUnderCursor e) of
@@ -91,8 +122,34 @@ implementation EditorIO IO where
 				--update editor (set_status ()))
 				loadFile editor
 				pure (Right ())
-
 			Left () => pure (Right ())
+
+	-- Ctrl C (case split)
+	handleKeypress editor CtrlC = do
+	  	Right () <- saveFile editor | Left () => pure (Left ())
+		e <- read editor
+		lift $ runCommand (loadFile e)
+		case (editorGetIdentifierUnderCursor e) of
+			Right identifer => do
+				output <- lift $ runCommand (caseSplit (snd (cursor e)) identifer)
+				--update editor (set_status ()))
+				loadFile editor
+				pure (Right ())
+			Left () => pure (Right ())
+
+	-- Ctrl O (obvious proof search [tries to fill value with given type constaints])
+	handleKeypress editor CtrlO = do
+	  	Right () <- saveFile editor | Left () => pure (Left ())
+		e <- read editor
+		lift $ runCommand (loadFile e)
+		case (editorGetIdentifierUnderCursor e) of
+			Right identifer => do
+				output <- lift $ runCommand (proofSearch (snd (cursor e)) identifer)
+				--update editor (set_status ()))
+				loadFile editor
+				pure (Right ())
+			Left () => pure (Right ())
+
 	--backSpace 
 	handleKeypress editor BackSpace = do
 		update editor editorRemoveChar
@@ -123,22 +180,26 @@ implementation EditorIO IO where
 		MkEditor (cx, cy) rx _ (offx, offy) numRows _ _ _ rows <- read editor
 		lift $ writeBuffer (escapes.moveCursor (rx - offx, cy - offy))
 		lift $ writeBuffer showCursor
+		pure (Right ())
 
 	close editor = delete editor
+		
+
 
 -- event loop listening to keypress and updating
 listenEvent : (EditorIO m, ConsoleIO m) => 
-				(editor : Var) -> ST m () [editor ::: Editor {m}]
+				(editor : Var) -> ST m () [editor ::: Editor {m} Ready :-> Editor {m} Closed]
 listenEvent editor = do
 		Right key <- readKey editor | Left () => pure ()
 		Right userContinues <- handleKeypress editor key | Left () => pure ()
-		refreshScreen editor
+		Right () <- refreshScreen editor | Left () => pure ()
 		listenEvent editor
-
 
 main : IO ()
 main = run (do 
 	Right editor <- init | Left () => pure ()
-	refreshScreen editor
+	Right () <- refreshScreen editor	| Left () => do
+		close editor
+		pure ()
 	listenEvent editor
 	close editor)
