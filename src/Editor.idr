@@ -9,14 +9,7 @@ import Action
 data EditState = Ready			-- Ready to read next Keypress
 			   | Handling		-- Processing Keypress
 			   | Refreshing		-- Refreshing
-			   | Closed			
-
-data AnyOK : EditState -> Type where
-	ReadyOK : AnyOK Ready
-	HandlingOK : AnyOK Handling
-	RefreshingOK : AnyOK Refreshing
-	ClosedOK : AnyOK Closed
-
+			   | Closed			-- Closed
 
 data FileState = InSync
 			   | OutOfSync
@@ -27,7 +20,7 @@ data BufferState = Flushed
 interface EditorIO (m : Type -> Type) where
 	Editor : EditState -> Type
 
-	init : ST m (Either () Var) [addIfRight (Editor Ready)]
+	init : ST m (Either () Var) [addIfRight (Editor Refreshing)]
 
 	loadFile : (editor : Var) -> 
 		ST m (Either () ()) [editor ::: Editor Ready]
@@ -36,10 +29,10 @@ interface EditorIO (m : Type -> Type) where
 		ST m (Either () ()) [editor ::: Editor Handling :-> (Editor Closed `or` Editor Ready)]
 
 	handleKeypress : (editor : Var) -> (key : Key) -> 
-		ST m (Either () ()) [editor ::: Editor Handling :-> (Editor Closed `or` Editor Ready)]
+		ST m (Either () ()) [editor ::: Editor Handling :-> (Editor Closed `or` Editor Refreshing)]
 	
 	refreshScreen : (editor : Var) -> 
-		ST m (Either () ()) [editor ::: Editor Ready :-> (Editor Closed `or` Editor Ready)]
+		ST m (Either () ()) [editor ::: Editor Refreshing :-> (Editor Closed `or` Editor Ready)]
 	
 	close : (editor : Var) -> 
 		ST m () [Remove editor (Editor Closed)]
