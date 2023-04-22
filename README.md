@@ -1,9 +1,7 @@
-# iedit
-Interactive code editor written in Idris for Idris. We use `Control.ST` to implement text editor as type safe state machine. 
+# 
+Dependently typed interactive code editor. Written in Idris for Idris. State monads to implement text editor as a type safe state machine. 
 
 ## Compiling
-
-
 
 ```bash
 git clone https://github.com/adip1343/iedit.git
